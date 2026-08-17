@@ -4,7 +4,7 @@ Tags: divi, fouc, flash of unstyled content, performance, css
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -17,22 +17,26 @@ Divi 5 sites commonly paint an unstyled page for a second or two before the desi
 * Disables Divi's Critical CSS deferral (unstyled paint when the above-the-fold guess misses) through Divi's own `et_pb_critical_css_enabled` hook.
 * Disables Divi 5's per-page Dynamic Assets system (archives served another template's CSS, missing styles injected by JavaScript after paint) through Divi's own `divi_frontend_assets_dynamic_assets_utils_*` hooks. Divi 5 removed the Theme Options toggle for this; these hooks are the supported off-switch that remains.
 * Preloads the ETmodules icon font and re-declares it with `font-display:block`, so icons are briefly invisible instead of wrong while the font loads.
+* Relocates the CSS Divi prints late during its first render after a cache clear into the head, so even that generation pass renders styled and full-page caches never capture a flashing copy.
 
 The trade: Divi loads its full static stylesheet in the head instead of a per-page slice. First visits download more CSS, browsers cache it across the whole site, and pages render styled on the first paint.
 
 Safe to leave installed. Every patch either runs through an Elegant Themes hook (a callback on a removed hook never runs) or verifies the file it targets still exists before printing anything. If Elegant Themes fixes these defects in core, the plugin degrades to a supported conservative configuration or to nothing.
 
-After activating, clear Divi's CSS cache (Divi > Theme Options, "Clear CSS Cache" button) so previously generated deferred stylesheets regenerate. If your host runs full-page caching or a CDN, visit your key pages once, then clear the page cache last.
+After activating, clear Divi's CSS cache (Divi > Theme Options, "Clear CSS Cache" button) so previously generated deferred stylesheets regenerate, then clear your host's page cache. As of 1.1.0 the first view of each page renders styled too, so pre-visiting pages to warm Divi's cache is optional rather than required.
 
 If you previously added manual FOUC snippets (filters in functions.php, font preloads in Integration), remove them when activating this plugin to avoid duplicate output. Duplicates are harmless but untidy.
 
 Per-feature opt-out for developers:
 
 `add_filter( 'divi5_fouc_patch_enabled', function ( $on, $feature ) {
-    return 'icon_font' === $feature ? false : $on; // features: critical_css, dynamic_assets, icon_font
+    return 'icon_font' === $feature ? false : $on; // features: critical_css, dynamic_assets, icon_font, first_pass_css
 }, 10, 2 );`
 
 == Changelog ==
+
+= 1.1.0 =
+* New: first-render fix. Divi's generation pass (the first view of a page after a CSS cache clear) prints its unified stylesheet near the end of the body, which flashed unstyled and could be captured by full-page caches. The plugin now buffers the page and moves those blocks into the head, so warming pages is optional rather than required. Feature key: `first_pass_css`.
 
 = 1.0.0 =
 * Initial release: Critical CSS off, Dynamic Assets off, ETmodules preload + font-display:block.

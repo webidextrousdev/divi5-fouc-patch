@@ -3,7 +3,7 @@
  * Plugin Name:       Divi 5 FOUC Patch
  * Plugin URI:        https://www.webidextrous.com/divi5-fouc-patch
  * Description:       Stops the flash of unstyled content (FOUC) on Divi 5 sites at the source. Disables Divi's Critical CSS deferral and per-page Dynamic Assets through Elegant Themes' own filter hooks, and hardens the ETmodules icon font so dropdown carets never render as the number "3". Designed to be left installed: every patch either runs through a Divi-provided hook (inert if Elegant Themes removes or reworks it) or checks that the file it targets still exists before printing anything.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Rob Watson, Webidextrous
@@ -25,7 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *       return 'icon_font' === $feature ? false : $on;
  *   }, 10, 2 );
  *
- * Features: 'critical_css', 'dynamic_assets', 'icon_font'.
+ * Features: 'critical_css', 'dynamic_assets', 'icon_font', 'first_pass_css'.
  *
  * @param string $feature Feature key.
  * @return bool
@@ -163,3 +163,73 @@ add_action( 'wp_head', function () {
 		esc_url( $base )
 	);
 }, 9999 );
+
+/*
+ * Patch 4: keep the first render after a CSS cache clear from flashing.
+ *
+ * The first time a page is viewed after Divi's CSS cache is cleared (or for
+ * the first time ever), Divi generates that page's unified stylesheet during
+ * the render, after the <head> has already been produced, and prints it as an
+ * inline <style> near the end of <body> while writing the static file that
+ * later views link in the head. That one generation pass paints the page
+ * unstyled, and a full-page cache or CDN that stores it will replay the
+ * flash for every visitor until the page cache clears.
+ *
+ * Fix: buffer the page and move any late-printed Divi unified/customizer
+ * style block up into the <head> before the HTML is sent. On already-cached
+ * views those blocks are in the head to begin with and the buffer passes
+ * through untouched.
+ *
+ * Left-installed safety: the callback only rewrites documents that contain
+ * a late-positioned block matching Divi's own id patterns. If a future Divi
+ * stops printing late styles, nothing matches and nothing is rewritten.
+ */
+add_action( 'template_redirect', function () {
+	if ( ! d5fp_enabled( 'first_pass_css' ) || ! d5fp_is_divi_theme() ) {
+		return;
+	}
+
+	// Leave the Visual Builder, previews, and feeds alone.
+	if ( is_feed() || is_preview() || ! empty( $_GET['et_fb'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		return;
+	}
+
+	ob_start( 'd5fp_relocate_late_styles' );
+}, 1 );
+
+/**
+ * Move Divi unified/customizer style blocks printed after </head> into the head.
+ *
+ * @param string $html Buffered page output.
+ * @return string
+ */
+function d5fp_relocate_late_styles( $html ) {
+	$head_end = strpos( $html, '</head>' );
+
+	if ( false === $head_end || false === strpos( $html, '<style id="et-core-unified', $head_end ) ) {
+		return $html;
+	}
+
+	$pattern = '#<style id="et-(?:core-unified|divi-customizer)[^"]*"[^>]*>.*?</style>#s';
+
+	if ( ! preg_match_all( $pattern, $html, $matches, PREG_OFFSET_CAPTURE ) ) {
+		return $html;
+	}
+
+	$late = array();
+	foreach ( $matches[0] as $match ) {
+		if ( $match[1] > $head_end ) {
+			$late[] = $match[0];
+		}
+	}
+
+	if ( ! $late ) {
+		return $html;
+	}
+
+	foreach ( $late as $block ) {
+		$html = str_replace( $block, '', $html );
+	}
+
+	return substr_replace( $html, implode( "\n", $late ) . "\n", strpos( $html, '</head>' ), 0 );
+}
