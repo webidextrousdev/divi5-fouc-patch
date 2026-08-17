@@ -5,7 +5,7 @@ Stops the flash of unstyled content (FOUC) on Divi 5 sites at the source, withou
 Divi 5 sites commonly paint an unstyled page for a second or two before the design arrives, and dropdown carets briefly render as the number "3". This plugin fixes the causes rather than covering them:
 
 - **Disables Divi's Critical CSS deferral.** With Critical CSS on, Divi inlines a guessed above-the-fold subset and loads the rest via `rel="preload"` with an onload swap, which never blocks rendering. Where the guess misses (Theme Builder archive templates especially), the whole page paints bare. Patched through Divi's own `et_pb_critical_css_enabled` hook.
-- **Disables Divi 5's per-page Dynamic Assets system.** All archive pages share one `et-cache/archive/` bucket, so archives can be served a stylesheet generated for a different template, with the missing styles appended by JavaScript after first paint. Divi 5 removed the Theme Options toggle for this feature and force-enables it; the `divi_frontend_assets_dynamic_assets_utils_*` hooks this plugin uses are the supported off-switch that remains.
+- **Disables Divi 5's per-page Dynamic Assets CSS.** All archive pages share one `et-cache/archive/` bucket, so archives can be served a stylesheet generated for a different template, with the missing styles appended by JavaScript after first paint. Divi 5 removed the Theme Options toggle for this feature and force-enables it; the `divi_frontend_assets_dynamic_assets_utils_use_dynamic_assets` hook this plugin uses is the supported off-switch that remains. Only the CSS side is touched — Divi's module JavaScript (menu search, sliders, toggles, pagination) keeps loading exactly as Divi detects it. Its sibling gate `..._should_generate_dynamic_assets` also controls the script enqueue pipeline in Divi 5.10 and is deliberately left alone.
 - **Hardens the ETmodules icon font.** Divi declares it `font-display:swap`, so icons render as fallback characters (the caret's codepoint is "3" in a text font) until the font loads. The plugin preloads the font and re-declares the face with `font-display:block`.
 
 The trade: Divi loads its full static stylesheet in the head instead of a per-page slice. First visits download more CSS, browsers cache it across the whole site, and pages render styled on the first paint.
@@ -35,7 +35,7 @@ Switch off individual features from a theme or plugin:
 
 ```php
 add_filter( 'divi5_fouc_patch_enabled', function ( $on, $feature ) {
-    // Features: 'critical_css', 'dynamic_assets', 'icon_font'.
+    // Features: 'critical_css', 'dynamic_assets', 'icon_font', 'first_pass_css'.
     return 'icon_font' === $feature ? false : $on;
 }, 10, 2 );
 ```
