@@ -3,7 +3,7 @@
  * Plugin Name:       Divi 5 FOUC Patch
  * Plugin URI:        https://www.webidextrous.com/divi5-fouc-patch
  * Description:       Stops the flash of unstyled content (FOUC) on Divi 5 sites at the source. Disables Divi's Critical CSS deferral and per-page Dynamic Assets through Elegant Themes' own filter hooks, and hardens the ETmodules icon font so dropdown carets never render as the number "3". Designed to be left installed: every patch either runs through a Divi-provided hook (inert if Elegant Themes removes or reworks it) or checks that the file it targets still exists before printing anything.
- * Version:           1.1.0
+ * Version:           1.2.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Rob Watson, Webidextrous
@@ -62,7 +62,7 @@ add_filter( 'et_pb_critical_css_enabled', function ( $enabled ) {
 } );
 
 /*
- * Patch 2: disable Dynamic Assets (per-page CSS generation).
+ * Patch 2: disable Dynamic Assets CSS (per-page CSS generation).
  *
  * Divi 5 removed the Theme Options "Dynamic CSS" toggle and force-enables
  * per-page CSS generation (see DynamicAssetsUtils::use_dynamic_assets()).
@@ -70,19 +70,30 @@ add_filter( 'et_pb_critical_css_enabled', function ( $enabled ) {
  * served a stylesheet generated for a different Theme Builder template, and
  * the styles that bucket misses are appended by JavaScript after first
  * paint (maybe_inject_late_dynamic_assets()), which guarantees a flash.
- * With both filters false, Divi enqueues its full static stylesheet in the
- * head instead: larger on first load, cached across the site, and unable
- * to paint unstyled.
+ * With this filter false, Divi serves its full static stylesheet
+ * (style-static.min.css, swapped in by et_divi_replace_parent_stylesheet())
+ * in the head instead: larger on first load, cached across the site, and
+ * unable to paint unstyled.
  *
- * Left-installed safety: both are Elegant Themes' own hooks, documented in
+ * Only `..._use_dynamic_assets` is filtered, and that is deliberate. It is
+ * the CSS switch: the theme picks the -static stylesheet on it, and CSS
+ * generation, per-page CSS enqueue, and the late JavaScript injection all
+ * require it (DynamicAssets::is_cachable_request()). Its sibling gate,
+ * `..._should_generate_dynamic_assets`, must NOT be filtered: since
+ * Divi 5.10 it also gates the module JavaScript enqueue pipeline
+ * (DynamicAssetsEnqueue::_may_enqueue_dynamic_scripts()), so forcing it
+ * false strips every conditional module script from the page with no
+ * visible symptom — the menu module's search icon and mobile toggle, blog
+ * pagination, sliders, toggles, tabs, audio, and video overlays all go
+ * inert. Versions 1.0.0-1.1.0 filtered both gates and shipped that bug;
+ * 1.2.0 dropped the second filter (issue #1).
+ *
+ * Left-installed safety: this is Elegant Themes' own hook, documented in
  * DynamicAssetsUtils as the supported way to disable the feature. If a
- * future Divi removes them, the callbacks never run. If Elegant Themes
- * fixes the underlying defects but keeps the hooks, the site simply stays
+ * future Divi removes it, the callback never runs. If Elegant Themes
+ * fixes the underlying defects but keeps the hook, the site simply stays
  * in the conservative full-stylesheet mode, which remains correct.
  */
-add_filter( 'divi_frontend_assets_dynamic_assets_utils_should_generate_dynamic_assets', function ( $enabled ) {
-	return d5fp_enabled( 'dynamic_assets' ) ? false : $enabled;
-} );
 add_filter( 'divi_frontend_assets_dynamic_assets_utils_use_dynamic_assets', function ( $enabled ) {
 	return d5fp_enabled( 'dynamic_assets' ) ? false : $enabled;
 } );

@@ -4,7 +4,7 @@ Tags: divi, fouc, flash of unstyled content, performance, css
 Requires at least: 6.0
 Tested up to: 6.8
 Requires PHP: 7.4
-Stable tag: 1.1.0
+Stable tag: 1.2.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -15,7 +15,7 @@ Stops the flash of unstyled content on Divi 5 sites at the source, without prelo
 Divi 5 sites commonly paint an unstyled page for a second or two before the design arrives, and dropdown carets briefly render as the number "3". This plugin fixes the causes rather than covering them:
 
 * Disables Divi's Critical CSS deferral (unstyled paint when the above-the-fold guess misses) through Divi's own `et_pb_critical_css_enabled` hook.
-* Disables Divi 5's per-page Dynamic Assets system (archives served another template's CSS, missing styles injected by JavaScript after paint) through Divi's own `divi_frontend_assets_dynamic_assets_utils_*` hooks. Divi 5 removed the Theme Options toggle for this; these hooks are the supported off-switch that remains.
+* Disables Divi 5's per-page Dynamic Assets CSS (archives served another template's CSS, missing styles injected by JavaScript after paint) through Divi's own `divi_frontend_assets_dynamic_assets_utils_use_dynamic_assets` hook. Divi 5 removed the Theme Options toggle for this; the hook is the supported off-switch that remains. Module JavaScript is untouched: Divi's script pipeline keeps loading each module's JS exactly as it detects it.
 * Preloads the ETmodules icon font and re-declares it with `font-display:block`, so icons are briefly invisible instead of wrong while the font loads.
 * Relocates the CSS Divi prints late during its first render after a cache clear into the head, so even that generation pass renders styled and full-page caches never capture a flashing copy.
 
@@ -34,6 +34,9 @@ Per-feature opt-out for developers:
 }, 10, 2 );`
 
 == Changelog ==
+
+= 1.2.0 =
+* Fix: restore Divi's module JavaScript. Versions 1.0.0-1.1.0 also filtered `divi_frontend_assets_dynamic_assets_utils_should_generate_dynamic_assets`, which in Divi 5.10 gates the module script enqueue pipeline as well as CSS generation — so every conditional module script (menu search icon and mobile toggle, blog pagination, sliders, toggles, tabs, audio, video overlays) was silently suppressed. The plugin now filters only `..._use_dynamic_assets`, which controls the CSS side alone: the full static stylesheet still loads in the head, per-page CSS generation and late injection stay off, and module JavaScript loads normally. If you added the `dynamic_assets` opt-out snippet as a workaround, remove it after updating.
 
 = 1.1.0 =
 * New: first-render fix. Divi's generation pass (the first view of a page after a CSS cache clear) prints its unified stylesheet near the end of the body, which flashed unstyled and could be captured by full-page caches. The plugin now buffers the page and moves those blocks into the head, so warming pages is optional rather than required. Feature key: `first_pass_css`.
